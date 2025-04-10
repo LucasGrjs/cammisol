@@ -31,7 +31,17 @@ global {
 	float rain_diffusion_rate <- 0.1;
 	float rain_period <- 7#days;
 	
+	int simulation_cycle_end <- 50;
+	
+	bool simulationTerminee <- false;
+	bool distributed_simulation <- false;
+	
 	init {
+		
+		seed <- 10.0;
+		
+		write("distributed_simulation ?? " + distributed_simulation);
+		
 		do init_grid;
 		do init_enzymatic_optimisation;
 		do init_enzymes;
@@ -61,88 +71,69 @@ global {
 		ask PoreParticle {
 			ask populations {
 				do update;
-				write "Initial enzymes optimization for " + self;
-				do optimize_enzymes(myself.dam, myself.accessible_organics);
+				//write "Initial enzymes optimization for " + self;
+				//do optimize_enzymes(myself.dam, myself.accessible_organics);
+			}
+		}
+		
+		/*int s1 <- length(MineralParticle);
+		int s2 <- length(PoreParticle);
+		int s3 <- (length(OrganicParticle) - length(PoreParticle));
+		
+		write("lenght MineralParticle " + s1);
+		write("lenght PoreParticle " + s2);
+		write("lenght OrganicParticle " + s3);
+		
+		write("lenght TOTAL " + (s1+s2+s3));
+		write("Nematode " + length(Nematode));
+		write("grid_size * grid_size = " + grid_size * grid_size);*/
+	}
+
+	reflex { // main loop of the model
+		ask shuffle(Nematode) {
+			if(scheduled) // execute only the Nematode if they are scheduled
+			{			
+				//write("self " + self);
+				do life;
+			}else
+			{
+				//write("" + self + " is not scheduled");
+			}
+		}
+		ask shuffle(PoreParticle) {
+			if(scheduled)
+			{
+				//write("self " + self);
+				ask populations {
+					if flip(local_step / enzymes_optimization_period) {
+						do update;
+						do optimize_enzymes(myself.dam, myself.accessible_organics);
+					}
+				}
+				do decompose;
+				do microbe_life;
+			}else
+			{
+				//write("" + self + " is not scheduled");
 			}
 		}
 	}
 	
-//	reflex rain when: rnd(1.0) < (1/rain_period)*local_step {
-////		write "It's raining today!";
-//		map<species<MicrobePopulation>, MicrobePopulation> extracted_populations;
-//		loop bacteria_type over: bacteria_types {
-//			create MicrobePopulation with: (
-//				C: 0.0, cytosol_C: 0.0,
-//				N: 0.0, cytosol_N: 0.0,
-//				P: 0.0, cytosol_P: 0.0
-//			) {
-//				extracted_populations[bacteria_type] <- self;
-//			}
-//		}
-//		
-//		ask PoreParticle {
-//			ask populations {
-//				ask extracted_populations[species(self)] {
-//					float extracted_C <- myself.C * rain_diffusion_rate;
-//					self.C <- self.C + extracted_C;
-//					myself.C <- myself.C - extracted_C;
-//					
-//					float extracted_P <- myself.P * rain_diffusion_rate;
-//					self.P <- self.P + extracted_P;
-//					myself.P <- myself.P - extracted_P;
-//					
-//					float extracted_N <- myself.N * rain_diffusion_rate;
-//					self.N <- self.N + extracted_N;
-//					myself.N <- myself.N - extracted_N;
-//					
-//					float extracted_cytosol_C <- myself.cytosol_C * rain_diffusion_rate;
-//					self.cytosol_C <- self.cytosol_C + extracted_cytosol_C;
-//					myself.cytosol_C <- myself.cytosol_C - extracted_cytosol_C;
-//					
-//					float extracted_cytosol_P <- myself.cytosol_P * rain_diffusion_rate;
-//					self.cytosol_P <- self.cytosol_P + extracted_cytosol_P;
-//					myself.cytosol_P <- myself.cytosol_P - extracted_cytosol_P;
-//					
-//					float extracted_cytosol_N <- myself.cytosol_N * rain_diffusion_rate;
-//					self.cytosol_N <- self.cytosol_N + extracted_cytosol_N;
-//					myself.cytosol_N <- myself.cytosol_N - extracted_cytosol_N;
-//				}
-//			}
-//		}
-//		
-//		ask PoreParticle {
-//			ask populations {
-//				MicrobePopulation extracted_pop <- extracted_populations[species(self)];
-//				self.C <- self.C + extracted_pop.C/length(PoreParticle);
-//				self.N <- self.N + extracted_pop.N/length(PoreParticle);
-//				self.P <- self.P + extracted_pop.P/length(PoreParticle);
-//				self.cytosol_C <- self.cytosol_C + extracted_pop.cytosol_C/length(PoreParticle);
-//				self.cytosol_N <- self.cytosol_N + extracted_pop.cytosol_N/length(PoreParticle);
-//				self.cytosol_P <- self.cytosol_P + extracted_pop.cytosol_P/length(PoreParticle);
-//			}
-//		}
-//	
-//		loop bacteria_type over: bacteria_types {
-//			ask extracted_populations[bacteria_type] {
-//				do die;
-//			}
-//		}
-//	}
-
-	reflex {
-		ask shuffle(Nematode) {
-			do life;
-		}
-		ask shuffle(PoreParticle) {
-			ask populations {
-				if flip(local_step / enzymes_optimization_period) {
-					do update;
-					do optimize_enzymes(myself.dam, myself.accessible_organics);
-				}
-			}
-			do decompose;
-			do microbe_life;
-		}
+	reflex
+	{
+		write("running cycle " + cycle);
+	} 
+	
+	reflex when: cycle = simulation_cycle_end
+	{
+		
+ 		//write("distribution step : --------------------------------------" + cycle);
+ 		//write("total_duration " + float(total_duration)/1000 + "s");
+ 		//write("duration " + float(duration)/1000 + "s");
+ 		simulationTerminee <- true;
+ 		write("simulation_cycle_end REACHED ");
+ 		write("total_duration " + float(total_duration)/1000 + "s");
+		//do die;
 	}
 }
 
@@ -188,6 +179,21 @@ experiment base_cammisol_output {
 				}
 			}	
 		}
+	}
+	
+	reflex save_charts when: !distributed_simulation
+	{
+		if(cycle mod 10 = 0)
+		{
+			ask simulation 
+			{	
+				save (snapshot("Awoken population")) to: "../output.log/snapshot/central/awoken_" + cycle + ".png" rewrite: true;
+				save (snapshot("dam")) to: "../output.log/snapshot/central/dam_" + cycle + ".png" rewrite: true;
+				save (snapshot("organics")) to: "../output.log/snapshot/central/organics_" + cycle + ".png" rewrite: true;
+				save (snapshot("populations")) to: "../output.log/snapshot/central/pop_" + cycle + ".png" rewrite: true;
+			}	
+		}
+			
 	}
 	
 	output {

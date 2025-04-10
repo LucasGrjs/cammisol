@@ -212,7 +212,8 @@ species MicrobePopulation schedules:[]
 	 * Assimilates nutrients from the specified dam to the cytosol.
 	 */
 	action assimilate(Dam dam, float perceived_rate) {
-		write "Requested C/N/P: " + requested_C + ", " + requested_N + ", " + requested_P;
+		//write "Requested C/N/P: " + requested_C + ", " + requested_N + ", " + requested_P;
+		
 		// C/N/P is retrieved in priority from the cytosol. Is enough nutrients
 		// is available in the cytosol, nothing is consumed from the perceived
 		// C/N/P.
@@ -238,7 +239,7 @@ species MicrobePopulation schedules:[]
 		dam.dim[1] <- dam.dim[1] - assimilated_P;
 		
 		
-		write "Cytosol C/N/P: " + cytosol_C + ", " + cytosol_N + ", " + cytosol_P;
+		//write "Cytosol C/N/P: " + cytosol_C + ", " + cytosol_N + ", " + cytosol_P;
 	}
 	
 	/**

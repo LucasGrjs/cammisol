@@ -39,6 +39,8 @@ species Nematode schedules:[]
 	
 	//un nematode mange entre 10K et 100k bacteries par jour -> moins de 10k il dort (ref article de colman)
 	
+	bool scheduled <- true;
+	
 	action life
 	{
 		float requested_C <- nematode_predation_rate * local_step;

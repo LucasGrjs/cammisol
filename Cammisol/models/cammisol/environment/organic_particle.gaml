@@ -26,6 +26,8 @@ species OrganicParticle schedules:[] {
 	float N_recalcitrant;
 	float P_recalcitrant;
 	
+	int cell_index;
+	
 	bool in_pore <- false;
 	
 	list<OrganicParticle> organic_neighbors;

@@ -207,7 +207,8 @@ grid Particle width: grid_size height: grid_size neighbors: 4 {
 					grid_x: self.grid_x,
 					grid_y: self.grid_y,
 					location: self.location,
-					shape: self.shape
+					shape: self.shape,
+					cell_index: self.index
 				) {
 					myself.particle <- self;
 				}

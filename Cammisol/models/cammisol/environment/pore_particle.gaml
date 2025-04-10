@@ -50,6 +50,8 @@ species PoreParticle schedules:[] {
 	
 	list<PoreParticle> pore_neighbors;
 	list<OrganicParticle> accessible_organics;
+	
+	bool scheduled <- true;
 
 
 	action decompose {
