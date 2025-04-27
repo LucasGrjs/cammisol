@@ -25,14 +25,15 @@ global
 	map<int,list<int>> pores_by_clusters;			// key : ID of cluster; value : list of the pores for that cluster 
 	map<int,int> cell_to_cluster; 					// key : index of the cell; value : cluster ID;
 	
-	list<int> border_cells; 						// index of the border cells executed by neighbor processor
-	list<int> adjacent_pores; 						// index of the adjacent pores
+	list<int> pores_neigh_border; 					// index of pores simulated by other proc adjacent to one of my pore
+	list<int> organics_neigh_border; 				// index of organics simulated by other proc adjacent to one of my pore
 	
 	list<int> my_adjacent_pores;					// list of the adjacent pores simulated by this instance
-	list<int> my_border_cells;						// list of the border cells simulated by this instance
+	list<int> my_border_organics;					// list of the border cells simulated by this instance
+	
 	list<int> my_cells;								// list of the cells simulated by this instance
 	list<int> my_pores;								// list of the pores simulated by this instance
-	list<int> my_nematodes;							// list of the nematodes simulated by this instance
+	list<Nematode> my_nematodes <- list<Nematode>([]);							// list of the nematodes simulated by this instance
 	
 	map<int,list<int>> my_border_organics_neighbors; // key : MPI RANK; value : list of organics to send
 	
@@ -41,7 +42,7 @@ global
 	init
  	{	
  		write("seed " + seed);
- 		seed <- 10.0;
+ 		seed <- 33.0;
  		 
  		create Communication_Agent_MPI; 					// init of the communication agent
  		MPI_RANK <- Communication_Agent_MPI[0].MPI_RANK;	// get the MPI Rank of this instance
@@ -74,33 +75,34 @@ global
  		
  		ask Partitionning_Agent
  		{
- 			do nematode;
-			//kmean_clusters <- grid_grid_partitioning(grid_size,grid_size,cluster_number,4);
+			//clusters <- grid_grid_partitioning(grid_size, grid_size, cluster_number,4);
 			clusters <- grid_KMEAN_partitionning(grid_size, grid_size, cluster_number, 4); // todo only cluster by 0 + scatter
+	 		//clusters <- grid_grid_partitioning(grid_size, grid_size, cluster_number, 4);
 	 		my_cells <- clusters[MPI_RANK];
 	 		
+			do coloring(clusters);					
 			write("grid_KMEAN_paritionning");
-			do coloring(clusters);
  			my_pores <- pores_by_clusters[MPI_RANK];
  			
+ 			do color_nematode_cell;
 			do border_cell;
  			do unschedule;
 	 		do unschedule_color;
 	 		
 			write("pores_by_clusters " + pores_by_clusters);
 			write("cell_to_cluster " + cell_to_cluster);
-			write("adjacent_pores " + adjacent_pores);
-			write("border_cells " + border_cells);
+			write("pores_neigh_border " + pores_neigh_border);
+			write("organics_neigh_border " + organics_neigh_border);
 			
-			write("my_border_cells " + my_border_cells );
+			write("my_border_organics " + my_border_organics );
 			write("my_adjacent_pores " + my_adjacent_pores);
 	 		write("my_cells" + my_cells);
 	 		write("my_pores" + my_pores);
 	 		write("my_nematodes "  + my_nematodes);
 	 		
 	 		
-			write("pourcent of border_cells " + (length(border_cells)/(grid_size * grid_size))*100 );
-	 		write("my_border_cells_neighbors " + my_border_cells_neighbors);
+			write("pourcent of border_cells " + (length(organics_neigh_border)/(grid_size * grid_size))*100 );
+	 		write("my_border_cells_neighbors " + my_border_organics_neighbors);
 		}
  	}
  	
@@ -146,12 +148,14 @@ global
 	 		{		
 		 		write("lenght organics after " + length(OrganicParticle)); // todo fix this
 	 		} 
+	 		
+	 		do migrate_nematode;
  		}
  	}
  	
  	action run_thematic_model // run a cycle of the CAMMISOL model
  	{
- 		write("distribution step : --------------------------------------" + cycle);
+ 		write("" + MPI_RANK + " distribution step : --------------------------------------" + cycle);
  		write("total_duration " + float(total_duration)/1000 + "s");
  		write("duration " + float(duration)/1000 + "s");
  		if(check_end_simulation())
@@ -189,7 +193,9 @@ grid particle_color width: grid_size height: grid_size neighbors: 4
 	bool nematode <- false;
 	bool scheduled <- true;
 	
-	bool border_cell <- false;
+	bool neighbor_pore_cell <- false;
+	bool my_border_pore_cell <- false;
+	
 	bool my_border_cell <- false;
 	
 	/**
@@ -208,10 +214,10 @@ grid particle_color width: grid_size height: grid_size neighbors: 4
 	}
 	aspect distributed
 	{
-		if(border_cell)
+		if(neighbor_pore_cell)
 		{		
 			draw self color: #black border: color_border;
-		}else if(my_border_cell)
+		}else if(my_border_pore_cell)
 		{
 			draw self color: #brown border: color_border;
 		}else
@@ -254,15 +260,16 @@ species Partitionning_Agent
 						int neigh_cluster <- cell_to_cluster[neigh.index];
 						if(my_cluster != neigh_cluster) 		// we are on different cluster
 						{
-							neigh.border_cell <- true;
-							cell.my_border_cell <- true;
 							
 							switch neigh.type { // type of neighbor cell
 								match "pore" {
-									add neigh.index to: adjacent_pores;		// neighbor = adjacent pore (nematode move)
+									add neigh.index to: pores_neigh_border;		// neighbor = adjacent pore (nematode move !)
+									add cell.index to: my_adjacent_pores;		// neighbor = adjacent pore (nematode move !)
+									neigh.neighbor_pore_cell <- true;		// neighbor is a pore
+									cell.my_border_pore_cell <- true;		// my cell is a pore
 								}
 								match "organic" {
-									add neigh.index to: border_cells;			// will need to receive update from this cell
+									add neigh.index to: organics_neigh_border;		// will need to receive update from this cell
 								}
 							}
 						}
@@ -276,17 +283,13 @@ species Partitionning_Agent
 						{
 							switch neigh.type {
 								match "pore" {
-									add neigh.index to: my_adjacent_pores;		// neighbor = adjacent pore (nematode move)
 									write("self : " + self);
-									
-									neigh.border_cell <- true;
-									cell.my_border_cell <- true;
+									add cell.index to: my_border_organics;
 									
 									// important use case : the current cell is an organics and is next to a pore on another cluster, we need to update that cell
-									do my_border_cells_neighbors(cell, neigh_cluster);
+									do add_my_border_cells_neighbors(cell, neigh_cluster);
 								}
 								match "organic" {
-									add neigh.index to: my_border_cells;			// will need to receive update from this cell
 									write("self : " + cell);
 								}
 							}
@@ -297,7 +300,7 @@ species Partitionning_Agent
 		}
 	}
 	
-	action my_border_cells_neighbors(particle_color cell, int neigh_cluster)
+	action add_my_border_cells_neighbors(particle_color cell, int neigh_cluster)
 	{
 		if( my_border_organics_neighbors[neigh_cluster] = nil)
 		{
@@ -350,9 +353,10 @@ species Partitionning_Agent
  	{
  		loop nematode over: nematode_to_cell.pairs 
  		{
- 			if(!(my_pores contains nematode))
+ 			write("nematode might be unschedleudl ? " + nematode);
+ 			if(!(my_pores contains nematode.value))
  			{
- 				//write("UNSCHELUDED " + nematode);
+ 				write("UNSCHELUDED " + nematode);
  				nematode.key.scheduled <- false;
  			}
  		}
@@ -382,19 +386,30 @@ species Partitionning_Agent
  	/**
   	* color Nematode position and store them in  nematode_to_cell
   	*/
-	action nematode
+	action color_nematode_cell
 	{
+		write("my_poresmy_poresmy_poresmy_pores " + my_pores);
  		ask Thematic.cammisol[0]
  		{	
+ 			let tmp_my_pores <- my_pores;
 			ask Nematode
 			{
 				nematode_to_cell[self] <- index_of_pores[current_pore.index]; // can't directly access particle_color in this context
+				write("" + self + "current_pore.index " + current_pore.index);
+				write(" " + self + " currurur " + index_of_pores[current_pore.index]);
+				if(tmp_my_pores contains index_of_pores[current_pore.index])
+				{
+					my_nematodes << self;
+				}
 			}
+			write("tmp_my_pores " + tmp_my_pores);
 		}
-		loop tmp over: nematode_to_cell
+		loop cell over: nematode_to_cell
 		{
-			particle_color[tmp].nematode <- true;
+			particle_color[cell].nematode <- true;	
 		}
+		
+		write("init my_nematodes " + my_nematodes);
 	}
 	
 	/**
@@ -459,6 +474,7 @@ species Synchronization_Agent
 		updated_organics <- nil; // emptying container
 		
 	}
+	
 	action kill_updated_cell
 	{
 		loop killer over: updated_organics
@@ -517,6 +533,34 @@ species Synchronization_Agent
 			}
 		}
 	}
+	
+	action migrate_nematode
+	{
+		write("migrate_nematode start " + my_nematodes);
+		write("my_pores " + my_pores);
+		map<int, list<Nematode>> nematodes_to_migrate;
+		loop nematode over: my_nematodes
+		{
+			write("" + nematode + " index_of_pores[nematode.current_pore.index] " + index_of_pores[nematode.current_pore.index]);
+			
+			if(!(my_pores contains index_of_pores[nematode.current_pore.index])) // nematode moved to a pore that I don't simulate
+			{
+				write(" ?? ??? ?? ? ? ? ? ?  " + nematode);
+				// migrate the nematode to the right instace
+				int cluster <- cell_to_cluster[nematode.current_pore.index];
+				
+				if(nematodes_to_migrate[cluster] = nil)
+				{
+					nematodes_to_migrate[cluster] <- list<Nematode>(nematode);
+				}else
+				{
+					nematodes_to_migrate[cluster] << nematode;
+				}
+			}
+		}
+		
+		write("nematodes_to_migrate " + nematodes_to_migrate);
+	}
 }
 
 experiment distribution type: MPI_EXP
@@ -543,9 +587,9 @@ experiment distribution type: MPI_EXP
 					save (snapshot("cammisole")) to: "../output.log/snapshot/cammisol.png" rewrite: true;	
 					save (snapshot("global distributed")) to: "../output.log/snapshot/distributed_cammisol_global.png" rewrite: true;
 				}
-				save (snapshot("distributed")) to: "../output.log/snapshot/distributed_cammisol " + mpi_id + ".png" rewrite: true;	
+				save (snapshot("distributed")) to: "../output.log/snapshot/distributed_cammisol_" + mpi_id + ".png" rewrite: true;	
 					
-				save (snapshot("UNSCHEDULED")) to: "../output.log/snapshot/UNSCHEDULED" + mpi_id + ".png" rewrite: true;
+				save (snapshot("UNSCHEDULED")) to: "../output.log/snapshot/UNSCHEDULED_" + mpi_id + ".png" rewrite: true;
 				
 				
 			

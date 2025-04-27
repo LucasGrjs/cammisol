@@ -49,10 +49,14 @@ species Nematode schedules:[]
 		
 		if(awake)
 		{
+			write("im awake " + self);
 			do move;
 			do predation(perceived_C, requested_C);
 			do respirate;	
 			do anabolize;
+		}else
+		{
+			write("im sleeping " + self);
 		}
 	}
 	
@@ -63,6 +67,7 @@ species Nematode schedules:[]
 	
 	action move
 	{
+		write("move " + self);
 		list<PoreParticle> neighbors_pores <- current_pore.pore_neighbors;
 		
 		float max_perceive <- sum(current_pore.populations collect (each.C + each.cytosol_C));
@@ -73,6 +78,12 @@ species Nematode schedules:[]
 			if(perceived_C > max_perceive) {
 				max_perceive <- perceived_C;
 				most_attractive <- self;
+				write("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! " + myself.index);
+				write("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! " + myself.current_pore);
+				write("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! " + most_attractive);
+				write("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ");
+				write("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ");
+				write("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ");
 			}
 		}
 		current_pore <- most_attractive;
