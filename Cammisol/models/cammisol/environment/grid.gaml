@@ -19,7 +19,7 @@ global {
 	float mineral_rate <- 1/3;
 	float pore_rate <- 1 - organic_rate - mineral_rate;
 
-	int grid_size <- 30;
+	int grid_size <- 20;
 	
 	float soil_size <- 1#cm;
 	
@@ -186,11 +186,13 @@ global {
 grid Particle width: grid_size height: grid_size neighbors: 4 {
 	string type;
 	agent particle;
+	int score;
 	
 	action init_particle {
 		switch type {
 			match MINERAL 
 			{
+				score <- 0;
 				color <- #yellow;
 				create MineralParticle with: (
 					grid_x: self.grid_x,
@@ -202,6 +204,7 @@ grid Particle width: grid_size height: grid_size neighbors: 4 {
 				}
 			}
 			match ORGANIC {
+				score <- 0;
 				color <- #green;
 				create OrganicParticle with: (
 					grid_x: self.grid_x,
@@ -214,6 +217,7 @@ grid Particle width: grid_size height: grid_size neighbors: 4 {
 				}
 			}
 			match PORE { 
+				score <- 1;
 				color <- #black;
 				// TODO: autant de nutriment dans la partie organique du pore que dans une vraie particule organique?
 				OrganicParticle pore_organic_particle;

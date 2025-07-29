@@ -14,9 +14,9 @@ global
 	int MPI_RANK <- 0;								// MPI RANK of the current  model instance
 	int MPI_SIZE;									// number of MPI rank on the network
 	
-	int cluster_number <- 6;						// number of cluster wanted
-	int grid_size <- 30;							// size of the grid
-	int nematodes_count <- 50;						// number of nematodes
+	int cluster_number;						// number of cluster wanted
+	int grid_size <- 20;							// size of the grid
+	int nematodes_count <- 20;						// number of nematodes
 	
 	list<list<int>> clusters;						// clusters of cells
 	
@@ -38,6 +38,8 @@ global
 	map<int,list<int>> my_border_organics_neighbors; // key : MPI RANK; value : list of organics to send
 	
 	map<Nematode,int> nematode_to_cell;				// key : Nematode agent; value : cell of the key nematode
+	
+	list<int> grid_score;
 		
 	init
  	{	
@@ -62,7 +64,7 @@ global
  		{
  			write("..................INIT CAMMISOL........................");
  			myself.grid_size <- grid_size;
- 			
+ 			grid_score <- Particle collect each.score;
  			loop particle over: list(Particle)
  			{
 				myself.particle_color[particle.index].type <- particle.type; // cammisol coloring
@@ -76,7 +78,9 @@ global
  		ask Partitionning_Agent
  		{
 			//clusters <- grid_grid_partitioning(grid_size, grid_size, cluster_number,4);
-			clusters <- grid_KMEAN_partitionning(grid_size, grid_size, cluster_number, 4); // todo only cluster by 0 + scatter
+			//clusters <- grid_KMEAN_partitionning(grid_size, grid_size, cluster_number, 4); // todo only cluster by 0 + scatter
+			clusters <- grid_score_partitioning(grid_size, grid_size, grid_score, cluster_number);
+			
 	 		//clusters <- grid_grid_partitioning(grid_size, grid_size, cluster_number, 4);
 	 		my_cells <- clusters[MPI_RANK];
 	 		
@@ -592,70 +596,56 @@ experiment distribution type: MPI_EXP
 				save (snapshot("UNSCHEDULED")) to: "../output.log/snapshot/UNSCHEDULED_" + mpi_id + ".png" rewrite: true;
 				
 				
-			
+	 			//save "N_dom; P_dom; C_dom; N_dim; P_dim" to: "../output.log/results/"+mpi_id+"/dam_" + mpi_id + ".csv" format: 'csv' rewrite: true;
+	 			//save "Cl; Nl; Pl; Cr; Nr; Pr" to: "../output.log/results/"+mpi_id+"/organics_" + mpi_id + ".csv" format: 'csv' rewrite: true;
+	 			//save "O_c; F_c; M_c" to: "../output.log/results/"+mpi_id+"/bacteria_" + mpi_id + ".csv" format: 'csv' rewrite: true;
+	 			
+	 			save "nematode_CO2_emissions"  to: "../output.log/results/CO2/CO2_" + mpi_id + ".csv" format: 'csv' rewrite: true;
 			}
 		}
 		if(cycle mod 10 = 0)
 		{
-		
-			N_dom <- 0.0;
-			P_dom <- 0.0;
-			C_dom <- 0.0;
-			N_dim <- 0.0;
-			P_dim <- 0.0;
-			ask simulation
-			{
-				float tmp_N_dom <- 0.0; 
-				float tmp_P_dom <- 0.0;
-				float tmp_C_dom <- 0.0;
-				float tmp_N_dim <- 0.0;
-				float tmp_P_dim <- 0.0;
+			ask Thematic.cammisol[0]
+			{	
+				/*list<PoreParticle> scheduled <- PoreParticle where each.scheduled;
 				
-				loop my_cell over: my_cells
-				{
-					ask Thematic.cammisol[0]
-					{
-						write("Particle[my_cell].type " + Particle[my_cell].type);
-						if(Particle[my_cell].type = "pore")
-						{
-							tmp_N_dom <- tmp_N_dom + (Particle[my_cell].particle as PoreParticle).dam.dom[0];
-							tmp_P_dom <- tmp_P_dom + (Particle[my_cell].particle as PoreParticle).dam.dom[1];
-							tmp_C_dom <- tmp_C_dom + (Particle[my_cell].particle as PoreParticle).dam.dom[2];
-							
-							tmp_N_dim <- tmp_N_dim + (Particle[my_cell].particle as PoreParticle).dam.dim[0];
-							tmp_P_dim <- tmp_P_dim + (Particle[my_cell].particle as PoreParticle).dam.dim[1];
-							
-							write("myself.N_dom c " + tmp_N_dom);
-							write("myself.P_dom c " + tmp_P_dom);
-							write("myself.C_dom c " + tmp_C_dom);
-							write("myself.N_dim c " + tmp_N_dim);
-							write("myself.P_dim c " + tmp_P_dim);
-						}	
-					}
-				}
+	 			save "" + sum(scheduled collect each.dam.dom[0])/#gram +
+	 			";" + sum(scheduled collect each.dam.dom[1])/#gram +
+	 			";" + sum(scheduled collect each.dam.dom[2])/#gram +
+	 			";" + sum(scheduled collect each.dam.dim[0])/#gram + 
+	 			";" + sum(scheduled collect each.dam.dim[1])/#gram 
+	 			to: "../output.log/results/"+mpi_id+"/dam_" + mpi_id + ".csv" format: 'csv' rewrite: false;
+	 			
+				save "" + sum(OrganicParticle collect each.C_labile)/#gram + 
+				";" +sum(OrganicParticle collect each.N_labile)/#gram + 
+				";" + sum(OrganicParticle collect each.P_labile)/#gram + 
+				";" + sum(OrganicParticle collect each.C_recalcitrant)/#gram +
+				";" +sum(OrganicParticle collect each.N_recalcitrant)/#gram +
+				";" +sum(OrganicParticle collect each.P_recalcitrant)/#gram 
+				to: "../output.log/results/"+mpi_id+"/organics_" + mpi_id + ".csv" format: 'csv' rewrite: false;
 				
-				myself.N_dom <- tmp_N_dom; 
-				myself.P_dom <- tmp_P_dom; 
-				myself.C_dom <- tmp_C_dom; 
-				myself.N_dim <- tmp_N_dim; 
-				myself.P_dim <- tmp_P_dim; 
+				let t <- list<MicrobePopulation>((scheduled collect each.populations));
 				
-				//save (snapshot("Awoken population")) to: "../output.log/snapshot/awoken/awoken_" + cycle + "__" + mpi_id + ".png" rewrite: true;
-				//save (snapshot("dam")) to: "../output.log/snapshot/dam/dam_" + cycle + "__" + mpi_id + ".png" rewrite: true;
-				//save (snapshot("organics")) to: "../output.log/snapshot/organics/organics_" + cycle + "__" + mpi_id + ".png" rewrite: true;
-				//save (snapshot("populations")) to: "../output.log/snapshot/pop/pop_" + cycle + "__" + mpi_id + ".png" rewrite: true;
-				write("myself.N_dom " + myself.N_dom);
-				write("myself.P_dom " + myself.P_dom);
-				write("myself.C_dom " + myself.C_dom);
-				write("myself.N_dim " + myself.N_dim);
-				write("myself.P_dim " + myself.P_dim);
+				let O <- scheduled collect each.populations[0].C;
+				let F <- scheduled collect each.populations[1].C;
+				let M <- scheduled collect each.populations[2].C;
 				
+				save "" + sum(O)/#gram + 
+				";" + sum(F)/#gram + 
+				";" + sum(M)/#gram 
+				 to: "../output.log/results/"+mpi_id+"/bacteria_" + mpi_id + ".csv" format: 'csv' rewrite: false;*/
+				 
+				 
+	 			save nematode_CO2_emissions  to: "../output.log/results/CO2/CO2_" + mpi_id + ".csv" format: 'csv' rewrite: false;
 			}
-			ask simulation
+			
+			/*ask simulation
 			{
 				save (snapshot("dam_distributed")) to: "../output.log/snapshot/dam_distributed/dam_" + cycle + "__" + mpi_id + ".png" rewrite: true;
-			}		
-		}	
+			}*/	
+		}
+				
+			
 		/*}else
 		{
 		}*/
@@ -679,7 +669,7 @@ experiment distribution type: MPI_EXP
 			species particle_color aspect: UNSCHEDULED;
 		}
 		
-		display "dam_distributed" type: java2D {
+		/*display "dam_distributed" type: java2D {
 			chart "dam" type:series {
 				data "N dom (g)" value: N_dom/#gram style:spline marker:false thickness:3;
 				data "P dom (g)" value: P_dom/#gram style:spline marker:false thickness:3;
@@ -687,7 +677,7 @@ experiment distribution type: MPI_EXP
 				data "N dim (g)" value: N_dim/#gram style:spline marker:false thickness:3;
 				data "P dim (g)" value: P_dim/#gram style:spline marker:false thickness:3;
 			}
-		}
+		}*/
 	}
 	
 } 

@@ -12,7 +12,7 @@ import "environment/grid.gaml"
 import "nematode/nematode.gaml"
 
 global {
-	int nematodes_count <- 50;
+	int nematodes_count <- 20;
 		
 	// 5E8 -> 5E9 bacterie / gramme de sol
 	/*
@@ -31,7 +31,7 @@ global {
 	float rain_diffusion_rate <- 0.1;
 	float rain_period <- 7#days;
 	
-	int simulation_cycle_end <- 50;
+	int simulation_cycle_end <- 302;
 	
 	bool simulationTerminee <- false;
 	bool distributed_simulation <- false;
@@ -195,6 +195,52 @@ experiment base_cammisol_output {
 		}
 			
 	}
+	
+	reflex save_result when: !distributed_simulation
+	{
+		if(cycle = 0)
+		{
+			save "N_dom; P_dom; C_dom; N_dim; P_dim" to: "../output.log/results_central/dam.csv" format: 'csv' rewrite: true;
+	 		save "Cl; Nl; Pl; Cr; Nr; Pr" to: "../output.log/results_central/organics.csv" format: 'csv' rewrite: true;
+	 		save "O_c; F_c; M_c" to: "../output.log/results_central/bacteria.csv" format: 'csv' rewrite: true;
+	 		save "nematode_CO2_emissions" to: "../output.log/results_central/CO2.csv" format: 'csv' rewrite: true;
+		}
+		if(cycle mod 10 = 0)
+		{
+			ask simulation 
+			{
+				/*save "" + sum(Dam collect each.dom[0])/#gram +
+	 			";" + sum(Dam collect each.dom[1])/#gram +
+	 			";" + sum(Dam collect each.dom[2])/#gram +
+	 			";" + sum(Dam collect each.dim[0])/#gram + 
+	 			";" + sum(Dam collect each.dim[1])/#gram 
+	 			to: "../output.log/results_central/dam.csv" format: 'csv' rewrite: false;
+	 			
+				save "" + sum(OrganicParticle collect each.C_labile)/#gram + 
+				";" +sum(OrganicParticle collect each.N_labile)/#gram + 
+				";" + sum(OrganicParticle collect each.P_labile)/#gram + 
+				";" + sum(OrganicParticle collect each.C_recalcitrant)/#gram +
+				";" +sum(OrganicParticle collect each.N_recalcitrant)/#gram +
+				";" +sum(OrganicParticle collect each.P_recalcitrant)/#gram 
+				to: "../output.log/results_central/organics.csv" format: 'csv' rewrite: false;
+				
+				
+				let O <- PoreParticle collect each.populations[0].C;
+				let F <- PoreParticle collect each.populations[1].C;
+				let M <- PoreParticle collect each.populations[2].C;
+				
+				write("O " + O);
+				write("F " + F);
+				write("M " + M);
+				
+				save "" + sum(O)/#gram + 
+				";" + sum(F)/#gram + 
+				";" + sum(M)/#gram 
+				to: "../output.log/results_central/bacteria.csv" format: 'csv' rewrite: false;	*/
+	 			save nematode_CO2_emissions  to: "../output.log/results_central/CO2.csv" format: 'csv' rewrite: false;
+			}	
+		}
+}
 	
 	output {
 		display grid {
